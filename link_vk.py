@@ -82,8 +82,29 @@ def access_decode(access):
     else:
         return ('Приватная')
 
+def get_links(user_id):
+    response = requests.get('http://localhost:8080/links/',
+                             params = {'user_id': user_id})
+    todos = json.loads(response.text)
+    select = list()
+    for items in range(len(todos)):
+        select_item = (todos[items])
+        select.append(select_item)
+    return select
+
+def print_links(user_id):
+    msg_text = 'N п/п - Полная ссылка - Сокращенная - Доступ'
+    all_links = get_links(user_id)
+    for items in range(len(all_links)):
+        msg_text = msg_text + (str(items + 1) + ' - ' +
+                               str(all_links[items][0]) + ' - ' +
+                               str(all_links[items][1]) + ' - ' +
+                               access_decode(all_links[items][2]) +'\n')
+    write_msg(user_id=user_id,
+              message=msg_text)
+
 def main_menu(user_id):
-    vk_print(user_id, 'Главное меню:', ('Регистрация пользователя', 'Ссылки'))
+    vk_print(user_id, 'Главное меню:', ('Регистрация пользователя', 'Регистрация ссылок', 'Показать все ссылки пользователя'))
 
 for event in longpoll.listen():
     if event.type == VkEventType.MESSAGE_NEW and event.to_me and event.text:
@@ -93,6 +114,8 @@ for event in longpoll.listen():
                 write_msg(event.user_id, add_user(event.user_id))
             elif event.text == '7':
                 write_msg(event.user_id, random_string_generator(10))
+            elif event.text == '3':
+                print_links(event.user_id)
             elif event.text == '2':
                 full_link = vk_menu(event.user_id, 'Регистрация ссылок:', ('Введите полную ссылку', 'Выход'))
                 short_link = random_string_generator(10)

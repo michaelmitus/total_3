@@ -22,23 +22,45 @@ def sql_command_lite(sql_req):
     con.close()
     return resp
 
+def sql_command_get(sql_req):
+    con = lite.connect('links.sqlite')
+    curID = con.cursor()
+    curID.execute(sql_req)
+    resp = curID.fetchall()
+    con.close()
+    return resp
+
 def short_link_exists(short_link):
     sql_request = 'SELECT ID FROM Links WHERE Short_link LIKE "%s"' % short_link
     resp = sql_command_lite(sql_request)
     return resp
 
-def add_link(user_id, full_link, short_link, access_type):
+def user_exists(name):
+    sql_request = 'SELECT ID FROM Users WHERE Name LIKE "%s"' % name
+    resp = sql_command_lite(sql_request)
+    return resp[0]
+
+def user_ID(vk_ID):
+    sql_request = 'SELECT ID FROM Users WHERE vk_ID = "%s"' % vk_ID
+    resp = sql_command_lite(sql_request)
+    return resp[0]
+
+def add_link(vk_id, full_link, short_link, access_type):
 #    Добавление ссылки
     if not short_link_exists(short_link):
-        sql_request = "INSERT INTO Links (Full_Link, Short_Link, UserID, Access) VALUES ('%s','%s', '%s','%s')" % (full_link, short_link, user_id, access_type)
+        sql_request = "INSERT INTO Links (Full_Link, Short_Link, UserID, Access) VALUES ('%s','%s', '%s','%s')" % (full_link, short_link, user_ID(vk_id), access_type)
         sql_command(sql_request)
         return 'Ok'+sql_request
     else:
         return 'Ошибка. Такая короткая ссылка уже зарегистрирована'
 
-def get_links(user_id):
-    sql_request = "SELECT Full_Link, Short_Link, Access FROM Links WHERE UserID='%s'" % (str(user_id))
-    return jsonify(sql_command(sql_request))
+def get_links(vk_ID):
+    print(user_ID(vk_ID))
+    sql_request = "SELECT Full_Link, Short_Link, Access FROM Links WHERE UserID=%s" % (str(user_ID(vk_ID)))
+    print(sql_request)
+    print(sql_command_get(sql_request))
+    print(sql_command(sql_request))
+    return jsonify(sql_command_get(sql_request))
 
 def delete_link(short_link):
     sql_request = "DELETE FROM Links WHERE Short_Link='%s'" % (str(short_link))
@@ -49,11 +71,6 @@ def update_link(full_link, short_link, access_type):
     sql_request = "DELETE FROM Links WHERE Short_Link='%s'" % (str(short_link))
     sql_command(sql_request)
     return 'Delete '+sql_request
-
-def user_exists(name):
-    sql_request = 'SELECT ID FROM Users WHERE Name LIKE "%s"' % name
-    resp = sql_command_lite(sql_request)
-    return resp[0]
 
 def add_user(id_vk, name, password):
     if not user_exists(name):
