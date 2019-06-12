@@ -2,9 +2,11 @@ import requests
 import sqlite3 as lite
 import json
 from newsapi import NewsApiClient
-from flask import Flask, request, Response, render_template, jsonify
+from flask import Flask, request, Response, render_template, jsonify, redirect
 
 app = Flask(__name__)
+auth = HTTPBasicAuth()
+app.config.from_object('config')
 
 def sql_command(sql_req):
     con = lite.connect('links.sqlite')
@@ -28,6 +30,11 @@ def sql_command_get(sql_req):
     curID.execute(sql_req)
     resp = curID.fetchall()
     con.close()
+    return resp
+
+def full_link(short_link):
+    sql_request = 'SELECT Full_link FROM Links WHERE Short_link LIKE "%s"' % short_link
+    resp = sql_command_lite(sql_request)
     return resp
 
 def short_link_exists(short_link):
@@ -55,11 +62,7 @@ def add_link(vk_id, full_link, short_link, access_type):
         return 'Ошибка. Такая короткая ссылка уже зарегистрирована'
 
 def get_links(vk_ID):
-    print(user_ID(vk_ID))
     sql_request = "SELECT Full_Link, Short_Link, Access FROM Links WHERE UserID=%s" % (str(user_ID(vk_ID)))
-    print(sql_request)
-    print(sql_command_get(sql_request))
-    print(sql_command(sql_request))
     return jsonify(sql_command_get(sql_request))
 
 def delete_link(short_link):
@@ -80,6 +83,30 @@ def add_user(id_vk, name, password):
     else:
         return "Пользователь :'%s' уже зарегистрирован. Выберите другое имя " % (name)
 
+def access_decode(access):
+    if access == 1:
+        return('Публичная')
+    elif access == 2:
+        return ('Общего доступа')
+    else:
+        return ('Приватная')
+
+
+def get_links_http(user_id):
+    sql_request = "SELECT Full_Link, Short_Link, Access FROM Links WHERE UserID=%s" % 4
+    links = sql_command_get(sql_request)
+    select = []
+
+    for items in range(len(links)):
+        select_item = (links[items])
+        select.append({'Full_link': select_item[0], 'Short_link': select_item[1], 'Access': access_decode(select_item[2])})
+
+    return render_template("index.html",
+        title = 'Список ссылок:',
+        user = user_id,
+        links = select)
+
+
 @app.route('/links/', methods=['GET', 'POST', 'PATCH', 'DELETE'])
 def links(*args, **kwargs):
     user_id = request.args.get('user_id')
@@ -88,7 +115,7 @@ def links(*args, **kwargs):
     short_link = request.args.get('short_link')
     access_type = request.args.get('access_type')
     if request.method == 'GET':
-        return get_links(user_id)
+        return get_links_http(user_id)
     elif request.method == 'POST':
         return add_link(user_id, full_link, short_link, access_type)
     elif request.method == 'PATCH':
@@ -114,6 +141,14 @@ def users(*args, **kwargs):
         return delete_link(short_link)
     else:
         return 'None'
+
+@app.route('/<short_link>')
+def index(short_link):
+    f_link = full_link(short_link)
+    if f_link:
+        return redirect(f_link[0], code=302)
+    else:
+        return get_links_http(4)
 
 if __name__ == '__main__':
    app.run (host = '127.0.0.1', port = 8080)

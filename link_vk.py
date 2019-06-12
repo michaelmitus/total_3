@@ -93,7 +93,7 @@ def get_links(user_id):
     return select
 
 def print_links(user_id):
-    msg_text = 'N п/п - Полная ссылка - Сокращенная - Доступ'
+    msg_text = 'N п/п - Полная ссылка - Сокращенная - Доступ \n'
     all_links = get_links(user_id)
     for items in range(len(all_links)):
         msg_text = msg_text + (str(items + 1) + ' - ' +
