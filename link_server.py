@@ -2,7 +2,7 @@ import requests
 import sqlite3 as lite
 import json
 from newsapi import NewsApiClient
-from flask import Flask, request, Response, render_template, jsonify, redirect
+from flask import Flask, request, Response, render_template, jsonify, redirect, make_response
 from flask import g, make_response
 from flask_httpauth import HTTPBasicAuth
 from flask_httpauth import HTTPTokenAuth
@@ -12,8 +12,11 @@ from datetime import datetime, timedelta
 import os
 from dateutil import parser
 
+import jwt
+
+from flask import Flask, render_template, request, redirect, url_for, flash, make_response
+
 app = Flask(__name__)
-app.config.from_object('config')
 basic_auth = HTTPBasicAuth()
 token_auth = HTTPTokenAuth()
 
@@ -42,18 +45,24 @@ def sql_command_get(sql_req):
     return resp
 
 def get_from_user(name, column):
-    print('GFU:')
-    return sql_command_lite('SELECT %s FROM Users WHERE Name LIKE "%s"' % (column, name))
+    result = sql_command_lite('SELECT %s FROM Users WHERE Name LIKE "%s"' % (column, name))
+    return result
 
 def get_token(username, expires_in=3600):
-    print('Get_token')
     now = datetime.utcnow()
-    token = get_from_user(username, 'token')
-    print('Get token. Token:', token)
-    token_expiration = parser.parse(get_from_user(username, 'token_expiration'))
-    if token and token_expiration > now + timedelta(seconds=60):
-        return token
-    token = base64.b64encode(os.urandom(24)).decode('utf-8')
+    token_tuple = get_from_user(username, 'token')
+    if token_tuple:
+        token = token_tuple[0]
+    token_expiration_tuple = get_from_user(username, 'token_expiration')
+    if token_expiration_tuple:
+        token_expiration_one = token_expiration_tuple[0]
+
+    if token_expiration_one:
+        token_expiration = parser.parse(token_expiration_one)
+        if token and token_expiration > now + timedelta(seconds=60):
+            return token
+
+    token = jwt.encode({'name': username}, 'midis-python', algorithm='HS256').decode('utf-8')
     token_expiration = now + timedelta(seconds=expires_in)
     sql_request = 'UPDATE Users SET token = "%s", token_expiration = "%s" WHERE Name LIKE "%s"' % (token, token_expiration, username)
     sql_command(sql_request)
@@ -63,21 +72,25 @@ def get_token(username, expires_in=3600):
 
 def revoke_token(username):
     token_expiration = datetime.utcnow() - timedelta(seconds=1)
-    sql_request = 'UPDATE Users SET token_expiration = "%s"' % token_expiration
-    sql_command_get(sql_request)
+    sql_request = 'UPDATE Users SET token_expiration = "%s" WHERE Name LIKE "%s"' % (token_expiration, username)
+    sql_command(sql_request)
+    return 'ok'
 
 # revoke_token('Michael')
 
 def check_token(token):
-    print('Chek_token')
     sql_request = 'SELECT Name FROM Users WHERE Token LIKE "%s"' % token
-    user = sql_command_lite(sql_request)
-    print(sql_request)
-    print (user)
+    result = sql_command_lite(sql_request)
+    if result:
+        user = result[0]
+    else:
+        return None
     if user is None:
         return None
-    if parser.parse(get_from_user(user, 'token_expiration')) < datetime.utcnow():
-        return None
+    token_expiration = get_from_user(user, 'token_expiration')[0]
+    if token_expiration:
+        if parser.parse(token_expiration) < datetime.utcnow():
+            return None
     return user
 
 def error_response(status_code, message=None):
@@ -91,26 +104,13 @@ def error_response(status_code, message=None):
 @token_auth.verify_token
 def verify_token(token):
     current_user = check_token(token) if token else None
-    print('Пользователь:', current_user)
-    print('Токен:', token)
+    if current_user:
+        print('Аутентификация токена пользователь: ', current_user, current_user is not None)
     return current_user is not None
 
 @token_auth.error_handler
 def token_auth_error():
     return error_response(401)
-
-
-@app.route('/tokens', methods=['GET'])
-@basic_auth.login_required
-def gets_token():
-    token = get_from_user('Michael', 'token')
-    print (token)
-#    print(token)
-#    res = make_response('Setting a cookie')
-#    print(res.set_cookie('my_token', (token)))
-#    wer = str(request.cookies.get('my_token'))
-#    print(wer)
-    return jsonify({'token': token})
 
 @basic_auth.verify_password
 def verify_password(name, password):
@@ -118,20 +118,33 @@ def verify_password(name, password):
     pwd = sql_command_lite(sql_request)
     if pwd is None:
         return False
+    if pwd[0] == password:
+        get_token(name)
     return pwd[0] == password
 
-verify_password('Michael','3')
+# verify_password('Michael','444')
 
 @basic_auth.error_handler
 def basic_auth_error():
     return error_response(401)
 
-@app.route('/tokens', methods=['POST'])
-@basic_auth.login_required
-def get_token():
-    token = g.current_user.get_token()
-    db.session.commit()
-    return jsonify({'token': token})
+@app.route('/tokens/', methods=['GET'])
+def gets_token(*args, **kwargs):
+    user = request.args.get('user')
+    password = request.args.get('password')
+    if verify_password(user, password):
+        token = get_from_user(user, 'token')
+        return jsonify({'token': token})
+    return HttpResponse('401 Unauthorized', status=401)
+
+@app.route('/login/', methods=['GET'])
+def check_login(*args, **kwargs):
+    name = request.args.get('user')
+    password = request.args.get('password')
+    if verify_password(name,password):
+        return 'ok'
+    else:
+        return 'dis'
 
 def full_link(short_link):
     sql_request = 'SELECT Full_link FROM Links WHERE Short_link LIKE "%s"' % short_link
@@ -148,8 +161,8 @@ def user_exists(name):
     resp = sql_command_lite(sql_request)
     return resp
 
-def user_ID(vk_ID):
-    sql_request = 'SELECT ID FROM Users WHERE vk_ID = "%s"' % vk_ID
+def user_ID(name):
+    sql_request = 'SELECT ID FROM Users WHERE name = "%s"' % name
     resp = sql_command_lite(sql_request)
     return resp
 
@@ -192,9 +205,11 @@ def access_decode(access):
     else:
         return ('Приватная')
 
-
 def get_links_http(user_id):
-    sql_request = "SELECT Full_Link, Short_Link, Access FROM Links WHERE UserID=%s" % 4
+    if user_id > 0 :
+        sql_request = "SELECT Full_Link, Short_Link, Access FROM Links WHERE UserID=%s" % user_id
+    else:
+        sql_request = "SELECT Full_Link, Short_Link, Access FROM Links WHERE Access=%s" % 1
     links = sql_command_get(sql_request)
     select = []
 
@@ -207,15 +222,21 @@ def get_links_http(user_id):
         user = user_id,
         links = select)
 
-
 @app.route('/links/', methods=['GET', 'POST', 'PATCH', 'DELETE'])
-@basic_auth.login_required
+@token_auth.login_required
 def links(*args, **kwargs):
-    user_id = request.args.get('user_id')
-    link_id = request.args.get('link_id')
     full_link = request.args.get('full_link')
     short_link = request.args.get('short_link')
     access_type = request.args.get('access_type')
+
+    auth3 = request.headers.get('Authorization').replace('Bearer ','')
+    jwt_req = jwt.decode(auth3, 'midis-python', algorithms=['HS256'])
+    user_name = jwt_req['name']
+
+    user_id = user_ID(user_name)[0]
+    if not user_id:
+        user_id = 0
+
     if request.method == 'GET':
         return get_links_http(user_id)
     elif request.method == 'POST':
@@ -225,7 +246,7 @@ def links(*args, **kwargs):
     elif request.method == 'DELETE':
         return delete_link(short_link)
     else:
-        return 'None'
+        return None
 
 @app.route('/users/', methods=['GET', 'POST', 'PATCH', 'DELETE'])
 @basic_auth.login_required
@@ -245,13 +266,34 @@ def users(*args, **kwargs):
     else:
         return 'None'
 
+def check_link_access(short_link, user):
+    sql_request = "SELECT UserID, Access FROM Links WHERE Short_Link='%s'" % (str(short_link))
+    r = sql_command_get(sql_request)
+    if r:
+        l_user = r[0][0]
+        l_access = r[0][1]
+        if user_ID(user):
+            l_user_ID = user_ID(user)[0]
+        if l_access == 1:
+            return True
+        elif l_access == 2:
+            if l_user_ID > 0:
+                return True
+        else:
+            return l_user_ID == l_user
+    return False
+
 @app.route('/<short_link>')
 def index(short_link):
-    f_link = full_link(short_link)
-    if f_link:
-        return redirect(f_link[0], code=302)
-    else:
-        return get_links_http(4)
+    user = request.args.get('user')
+    password = request.args.get('password')
+    if user:
+        if verify_password(user, password):
+            if check_link_access(short_link, user):
+                f_link = full_link(short_link)
+                if f_link:
+                    return redirect(f_link[0], code=302)
+    return get_links_http(4)
 
 if __name__ == '__main__':
    app.run (host = '127.0.0.1', port = 8080)
