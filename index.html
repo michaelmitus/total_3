@@ -8,8 +8,8 @@
   </head>
   <body>
     <h1>Hi, {{user.nickname}}!</h1>
-    {% for post in posts %}
-    <p>{{post.author.nickname}} says: <b>{{post.body}}</b></p>
+    {% for link in links %}
+    <p>Full link: <b>{{link.Full_link}}</b>, Short link: <b>{{link.Short_link}}</b>, Доступ: <b>{{link.Access}}</b></p>
     {% endfor %}
   </body>
 </html>

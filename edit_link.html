@@ -1,0 +1,62 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+<title>Документ без названия</title>
+</head>
+
+<body>
+<p>Пользователь:</p>
+<table width="1032" border="1">
+  <tr>
+    <th width="41" scope="col">&nbsp;</th>
+    <th width="900" scope="col">Редактирование ссылки</th>
+    <th width="69" scope="col">&nbsp;</th>
+  </tr>
+  <tr>
+    <th scope="row">&nbsp;</th>
+    <td>
+        <form action="" method="post" novalidate>
+                {{ form.hidden_tag() }}
+            <p>
+                {{ form.full_link.label }}<br>
+                {{ form.full_link(size=80) }}
+                {% for error in form.full_link.errors %}
+            	    <span style="color: red;">[{{ error }}]</span>
+                {% endfor %}                
+            </p>
+            <p>
+                {{ form.short_link.label }}<br>
+                {{ form.short_link(size=32) }}
+                {% for error in form.short_link.errors %}
+             	   <span style="color: red;">[{{ error }}]</span>
+                {% endfor %}                
+            </p>
+            <p>
+                {{ form.access.label }}<br>
+                {{ form.access }}
+            </p>
+            <p>{{ form.submit() }}</p>
+        </form>
+    </td>
+    <td>&nbsp;</td>
+  </tr>
+  <tr>
+    <th scope="row">&nbsp;</th>
+    <td>
+        {% with messages = get_flashed_messages() %}
+        {% if messages %}
+        <ul>
+            {% for message in messages %}
+            <li>{{ message }}</li>
+            {% endfor %}
+        </ul>
+        {% endif %}
+        {% endwith %}
+        {% block content %}{% endblock %}    
+    </td>
+    <td>&nbsp;</td>
+  </tr>
+</table>
+</body>
+</html>
