@@ -142,10 +142,8 @@ def gets_token(*args, **kwargs):
 def check_login(*args, **kwargs):
     name = request.args.get('user')
     password = request.args.get('password')
-    if verify_password(name,password):
-        return 'ok'
-    else:
-        return 'dis'
+    jsonify(verify_password(name, password))
+    return jsonify(verify_password(name, password))
 
 def full_link(short_link):
     sql_request = 'SELECT Full_link FROM Links WHERE Short_link LIKE "%s"' % short_link
@@ -185,10 +183,10 @@ def delete_link(id):
     sql_command(sql_request)
     return 'Delete '+sql_request
 
-def update_link(full_link, short_link, access_type):
-    sql_request = "DELETE FROM Links WHERE Short_Link='%s'" % (str(short_link))
+def update_link(link_id, full_link, short_link, access_type):
+    sql_request = "UPDATE Links SET Full_link = %s, Short_link = $s, Access = $s), WHERE ID=%s" % (full_link, short_link, access_type, str(link_id))
     sql_command(sql_request)
-    return 'Delete '+sql_request
+    return 'Update '+sql_request
 
 def add_user(id_vk, name, password):
     if not user_exists(name):
@@ -200,7 +198,7 @@ def add_user(id_vk, name, password):
 
 def access_decode(access):
     if access == 1:
-        return('Публичная')
+        return ('Публичная')
     elif access == 2:
         return ('Общего доступа')
     else:
@@ -257,7 +255,7 @@ def links(*args, **kwargs):
     elif request.method == 'DELETE':
         return delete_link(link_id)
     else:
-        return None
+        return False
 
 @app.route('/users/', methods=['GET', 'POST', 'PATCH', 'DELETE'])
 @basic_auth.login_required
@@ -275,7 +273,7 @@ def users(*args, **kwargs):
     elif request.method == 'DELETE':
         return delete_link(short_link)
     else:
-        return 'None'
+        return False
 
 def check_link_access(short_link, user):
     sql_request = "SELECT UserID, Access FROM Links WHERE Short_Link='%s'" % (str(short_link))
@@ -285,6 +283,8 @@ def check_link_access(short_link, user):
         l_access = r[0][1]
         if user_ID(user):
             l_user_ID = user_ID(user)[0]
+        else:
+            l_user_ID = 0
         if l_access == 1:
             return True
         elif l_access == 2:
@@ -294,17 +294,26 @@ def check_link_access(short_link, user):
             return l_user_ID == l_user
     return False
 
+def relink(short_link, user):
+    print(short_link)
+    print(user)
+    print(check_link_access(short_link, user))
+    if check_link_access(short_link, user):
+        f_link = full_link(short_link)
+        if f_link:
+            return redirect(f_link[0], code=302)
+    else:
+        return make_response(jsonify({'error': 'Unauthorized access'}), 401)
+
 @app.route('/<short_link>')
 def index(short_link):
     user = request.args.get('user')
     password = request.args.get('password')
-    if user:
-        if verify_password(user, password):
-            if check_link_access(short_link, user):
-                f_link = full_link(short_link)
-                if f_link:
-                    return redirect(f_link[0], code=302)
-    return None
+    if verify_password(user, password):
+            return relink(short_link, user)
+    else:
+        return relink(short_link, 0)
+    return make_response(jsonify({'error': 'Unauthorized access'}), 401)
 
 if __name__ == '__main__':
    app.run (host = '127.0.0.1', port = 8080)

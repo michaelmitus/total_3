@@ -9,6 +9,7 @@ from werkzeug.http import HTTP_STATUS_CODES
 app = Flask(__name__)
 app.config['SECRET_KEY'] = 'you-will-never-guess'
 basic_auth = HTTPBasicAuth()
+server_path = 'http://127.0.0.1:8080/'
 
 from flask_wtf import FlaskForm
 from wtforms import StringField, PasswordField, BooleanField, SubmitField, RadioField
@@ -47,17 +48,15 @@ def error_response(status_code, message=None):
 
 @basic_auth.verify_password
 def verify_password(name, password):
-    r = requests.get('http://localhost:8080/login/', params = {'user' : name, 'password' : password})
-    print(r.text)
-    if r.text == 'dis':
-        return False
-    if r:
-        r_token = requests.get('http://localhost:8080/tokens/', params = {'user' : name, 'password' : password})
+    r = requests.get(server_path+'login/', params = {'user' : name, 'password' : password})
+    if r.json():
+        r_token = requests.get(server_path+'tokens/', params = {'user' : name, 'password' : password})
+    else: r_token = False
     g.user = name
     g.password = password
-    if name:
+    if name and r_token:
         g.token = r_token.json()['token'][0]
-    return r.text == 'ok'
+    return r.json()
 
 @basic_auth.error_handler
 def basic_auth_error():
@@ -66,19 +65,24 @@ def basic_auth_error():
 @app.route('/')
 @basic_auth.login_required
 def index2():
-    r = requests.get('http://localhost:8080/')
+    r = requests.get(server_path)
     return r
 
 @app.route('/<short_link>')
 @basic_auth.login_required
 def index(short_link):
-    r = requests.get('http://localhost:8080/'+short_link, params={'user': g.user, 'password': g.password})
+    r = requests.get(server_path+short_link, params={'user': g.user, 'password': g.password})
+    return r.text
+
+@app.route('/ua/<short_link>')
+def index_ua(short_link):
+    r = requests.get(server_path+short_link)
     return r.text
 
 @app.route('/all_links/', methods=['GET', 'POST'])
 @basic_auth.login_required
 def all_link():
-    r = requests.get('http://localhost:8080/links/', headers={'Authorization': "Bearer %s" % g.token})
+    r = requests.get(server_path+'links/', headers={'Authorization': "Bearer %s" % g.token})
     links = r.json()
     print(links)
     return render_template("links.html",
@@ -92,7 +96,7 @@ def edit_link():
     form = LinkForm()
     print(form.validate_on_submit())
     if form.full_link.data and form.short_link.data and form.access.data:
-        r = requests.post('http://localhost:8080/links/',
+        r = requests.post(server_path+'links/',
                          headers={'Authorization': "Bearer %s" % g.token},
                          params ={
                              'full_link': form.full_link.data,
@@ -105,7 +109,7 @@ def edit_link():
 @app.route('/delete_link/<link_id>', methods=['GET', 'POST'])
 @basic_auth.login_required
 def delete_link(link_id):
-    r = requests.delete('http://localhost:8080/links/',
+    r = requests.delete(server_path+'links/',
                      headers={'Authorization': "Bearer %s" % g.token},
                      params ={
                          'link_id': link_id})
@@ -114,13 +118,13 @@ def delete_link(link_id):
 @app.route('/links/<short_link>')
 @basic_auth.login_required
 def index_links(short_link):
-    r = requests.get('http://localhost:8080/links/', headers={'Authorization': "Bearer %s" % g.token})
+    r = requests.get(server_path+'links/', headers={'Authorization': "Bearer %s" % g.token})
     return r.text
 
 @app.route('/tokens/')
 @basic_auth.login_required
 def index_tokens():
-    r = requests.get('http://localhost:8080/tokens/',  params = {'user' : g.user, 'password' : g.password})
+    r = requests.get(server_path+'tokens/',  params = {'user' : g.user, 'password' : g.password})
     return r.text
 
 if __name__ == '__main__':
