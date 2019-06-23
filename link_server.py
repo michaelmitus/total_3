@@ -178,23 +178,32 @@ def get_links(user_id):
     sql_request = "SELECT Full_Link, Short_Link, Access FROM Links WHERE UserID=%s" % user_id
     return jsonify(sql_command_get(sql_request))
 
+def get_link(id):
+    sql_request = "SELECT Full_Link, Short_Link, Access, UserID FROM Links WHERE ID=%s" % id
+    select = sql_command_get(sql_request)[0]
+    result = {'full_link': select[0], 'short_link': select[1], 'access': select[2], 'user_id': select[3]}
+    return jsonify(result)
+
 def delete_link(id):
     sql_request = "DELETE FROM Links WHERE ID='%s'" % (str(id))
     sql_command(sql_request)
     return 'Delete '+sql_request
 
 def update_link(link_id, full_link, short_link, access_type):
-    sql_request = "UPDATE Links SET Full_link = %s, Short_link = $s, Access = $s), WHERE ID=%s" % (full_link, short_link, access_type, str(link_id))
+    sql_request = "UPDATE Links SET Full_link = '%s', Short_link = '%s', Access = '%s' WHERE ID=%s" % (full_link, short_link, str(access_type), str(link_id))
+    print(sql_request)
     sql_command(sql_request)
     return 'Update '+sql_request
 
 def add_user(id_vk, name, password):
+    select = {'name': name, 'password': password, 'status': 'ok'}
     if not user_exists(name):
         sql_request = "INSERT INTO Users (vk_ID, name, Password) VALUES ('%s','%s','%s')" % (str(id_vk), name, password)
         sql_command(sql_request)
-        return "Добавлен пользователь :'%s'" % (name)
+        return jsonify(select)
     else:
-        return "Пользователь :'%s' уже зарегистрирован. Выберите другое имя " % (name)
+        select['status'] = 'error'
+        return jsonify(select)
 
 def access_decode(access):
     if access == 1:
@@ -251,29 +260,63 @@ def links(*args, **kwargs):
         print(user_id, full_link, short_link, access_type)
         return add_link(user_id, full_link, short_link, access_type)
     elif request.method == 'PATCH':
-        return update_link(full_link, short_link, access_type)
+        return update_link(link_id, full_link, short_link, access_type)
     elif request.method == 'DELETE':
         return delete_link(link_id)
     else:
         return False
 
-@app.route('/users/', methods=['GET', 'POST', 'PATCH', 'DELETE'])
+@app.route('/link/<id>', methods=['GET', 'POST', 'PATCH', 'DELETE'])
+@token_auth.login_required
+def link(id, *args, **kwargs):
+    full_link = request.args.get('full_link')
+    short_link = request.args.get('short_link')
+    access_type = request.args.get('access_type')
+    link_id = request.args.get('link_id')
+
+    auth3 = request.headers.get('Authorization').replace('Bearer ','')
+    jwt_req = jwt.decode(auth3, 'midis-python', algorithms=['HS256'])
+    user_name = jwt_req['name']
+
+    user_id = user_ID(user_name)[0]
+
+    if not user_id:
+        user_id = 0
+
+    if request.method == 'GET':
+        return get_link(id)
+    elif request.method == 'POST':
+        print(user_id, full_link, short_link, access_type)
+        return add_link(user_id, full_link, short_link, access_type)
+    elif request.method == 'PATCH':
+        return update_link(link_id, full_link, short_link, access_type)
+    elif request.method == 'DELETE':
+        return delete_link(link_id)
+    else:
+        return False
+
+@app.route('/users/', methods=['GET', 'PATCH', 'DELETE'])
 @basic_auth.login_required
 def users(*args, **kwargs):
     user_id = request.args.get('user_id')
     vk_id = request.args.get('vk_id')
     password = request.args.get('password')
-    name = request.args.get('name')
+    user_name = request.args.get('name')
     if request.method == 'GET':
-        return get_links(user_id)
-    elif request.method == 'POST':
-        return add_user(vk_id, name, password)
+        return get_links_http(user_name)
     elif request.method == 'PATCH':
         return update_link(full_link, short_link, access_type)
     elif request.method == 'DELETE':
         return delete_link(short_link)
     else:
         return False
+
+@app.route('/users/', methods=['POST'])
+def users_add(*args, **kwargs):
+    vk_id = request.args.get('vk_id')
+    password = request.args.get('password')
+    user_name = request.args.get('name')
+    return add_user(vk_id, user_name, password)
 
 def check_link_access(short_link, user):
     sql_request = "SELECT UserID, Access FROM Links WHERE Short_Link='%s'" % (str(short_link))
@@ -294,16 +337,23 @@ def check_link_access(short_link, user):
             return l_user_ID == l_user
     return False
 
+#def link_exists(short_link):
+
 def relink(short_link, user):
     print(short_link)
     print(user)
     print(check_link_access(short_link, user))
-    if check_link_access(short_link, user):
-        f_link = full_link(short_link)
-        if f_link:
+
+    f_link = full_link(short_link)
+
+    if f_link:
+        if check_link_access(short_link, user):
             return redirect(f_link[0], code=302)
+        else:
+            return make_response(jsonify({'error': 'Unauthorized access'}), 401)
     else:
-        return make_response(jsonify({'error': 'Unauthorized access'}), 401)
+        return make_response(jsonify({'error': 'Error Short Link'}), 404)
+
 
 @app.route('/<short_link>')
 def index(short_link):
