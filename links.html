@@ -16,7 +16,7 @@
   {% for link in links %}
   <tr>
     <th scope="row"><p><a href="/delete_link/{{link.ID}}">DELETE</a><br>
-    EDIT</p></th>
+   <a href="/edit_link/{{link.ID}}">EDIT</a></p></th>
     <td>{{link.Full_link}}</td>
     <td>{{link.Short_link}}</td>
     <td>{{link.Access}}</td>

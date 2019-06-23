@@ -25,15 +25,16 @@
             	    <span style="color: red;">[{{ error }}]</span>
                 {% endfor %}                
             </p>
+
             <p>
-                {{ form.short_link.label }}<br>
+                {{ form.short_link.label }}
                 {{ form.short_link(size=32) }}
-                {% for error in form.short_link.errors %}
-             	   <span style="color: red;">[{{ error }}]</span>
-                {% endfor %}                
+            </p>
+            <p>{% for error in form.short_link.errors %} <span style="color: red;">[{{ error }}]</span>
+              {% endfor %}                
             </p>
             <p>
-                {{ form.access.label }}<br>
+        {{ form.access.label }}<br>
                 {{ form.access }}
             </p>
             <p>{{ form.submit() }}</p>
