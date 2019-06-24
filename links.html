@@ -6,20 +6,22 @@
 
 <body>
     <p>USER: {{name}}</p>
-<table width="1002" border="1">
+<table width="1147" border="1">
   <tr>
     <th width="78" scope="col">&nbsp;</th>
     <th width="599" scope="col">FULL LINK</th>
     <th width="158" scope="col">SHORT LINK</th>
     <th width="139" scope="col">ACCESS</th>
+    <th width="139" scope="col">COUNTER</th>
   </tr>
   {% for link in links %}
   <tr>
     <th scope="row"><p><a href="/delete_link/{{link.ID}}">DELETE</a><br>
    <a href="/edit_link/{{link.ID}}">EDIT</a></p></th>
     <td>{{link.Full_link}}</td>
-    <td>{{link.Short_link}}</td>
+    <td><a href="/{{link.Short_link}}">{{link.Short_link}}</a></td>
     <td>{{link.Access}}</td>
+    <td><div align="center">{{link.Counter}}</div></td>
   </tr>
     {% endfor %}
   <tr>
@@ -27,6 +29,7 @@
     <td><a href="/add_links/">ADD LINK</a></td>
     <td>&nbsp;</td>
     <td>&nbsp;</td>
+    <td>0</td>
   </tr>
 </table>
 </body>
