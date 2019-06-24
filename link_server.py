@@ -165,6 +165,17 @@ def user_ID(name):
     resp = sql_command_lite(sql_request)
     return resp
 
+def add_counter(short_link):
+    sql_request = 'SELECT counter FROM Links WHERE Short_link LIKE "%s"' % short_link
+    resp = sql_command_lite(sql_request)[0]
+    if resp:
+        resp = resp + 1
+    else:
+        resp = 1
+    sql_request = 'UPDATE Links SET counter = "%s" WHERE Short_link LIKE "%s"' % (str(resp), short_link)
+    sql_command(sql_request)
+    return resp
+
 def add_link(user_id, full_link, short_link, access_type):
 #    Добавление ссылки
     if not short_link_exists(short_link):
@@ -221,9 +232,9 @@ def get_links_http(user):
         user_id = 0
     print(user_id)
     if user_id > 0 :
-        sql_request = "SELECT Full_Link, Short_Link, Access, id FROM Links WHERE UserID=%s" % user_id
+        sql_request = "SELECT Full_Link, Short_Link, Access, id, counter FROM Links WHERE UserID=%s" % user_id
     else:
-        sql_request = "SELECT Full_Link, Short_Link, Access, id FROM Links WHERE Access=%s" % 1
+        sql_request = "SELECT Full_Link, Short_Link, Access, id, counter  FROM Links WHERE Access=%s" % 1
     links = sql_command_get(sql_request)
     select = []
 
@@ -234,6 +245,7 @@ def get_links_http(user):
                        'Access_ID':     select_item[2],
                        'Access':        access_decode(select_item[2]),
                        'ID':            select_item[3],
+                       'Counter':       select_item[4],
                        })
     return jsonify(select)
 
@@ -348,6 +360,7 @@ def relink(short_link, user):
 
     if f_link:
         if check_link_access(short_link, user):
+            add_counter(short_link)
             return redirect(f_link[0], code=302)
         else:
             return make_response(jsonify({'error': 'Unauthorized access'}), 401)
